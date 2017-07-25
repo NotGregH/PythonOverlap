@@ -1,5 +1,5 @@
 """
-Date - 7/20/17
+Date - 7/25/17
 
 Writen for the Gamble Lab @
 Albert Einstein College of Medicine
@@ -31,7 +31,7 @@ Future Revisions:
 """
 
 __author__ =  'Gregory A. Hamilton'
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 __license__ = ''
 __email__ = 'ghamilto@mail.einstein.yu.edu'
 
@@ -73,96 +73,86 @@ def pickChromosomes(selection='A'):
     return chrList
 
 
-def overLap2Way(uniA,uniB,sigA,sigB,chrList):
+def intervalCoverage(interval):
     """
-    Overlaps the interval objects from gappedPeakReader()
-    and outputs the variables required for a fisher exact test.
+    Calculates the base pairs covered by an interval.
+    :param interval:
+    :return:
+    """
+    coverage = 0
+    for i in interval:
+        coverage = coverage + (i[1] - i[0])
+    return coverage
+
+
+def overLap2Way(uniA,uniB,sigA,sigB):
+    """
+    Overlaps the interval objects and
+    outputs the variables required for a fisher exact test.
     Also outputs the intervals associated with that group.
 
     :param uniA: All intervals in A
     :param uniB: All intervals in B
     :param sigA: Intervals that meet the significance cut off for A
     :param sigB: Intervals that meet the significance cur off for B
-    :param chrList: List of Chromosomes to analyze
-    :return: The returned dictionaries are organized by chromosomes.
+    :return: A, B, C, and D for a fishers exact test
     """
-    sigOverlap = dict.fromkeys(chrList)
-    sigOnlyA = dict.fromkeys(chrList)
-    sigOnlyB = dict.fromkeys(chrList)
-    universe = dict.fromkeys(chrList)
+    yesYes = 0
+    yesNo = 0
+    noYes = 0
+    noNo = 0
+
+    universe = uniA & uniB
+    noNo = intervalCoverage(universe)
+    yesYesInterval = sigA & sigB
+    yesYes = intervalCoverage(yesYesInterval)
+    yesNoInterval = sigA & universe
+    yesNo = intervalCoverage(yesNoInterval) - yesYes
+    noYesInterval = sigB & universe
+    noYes = intervalCoverage(noYesInterval) - yesYes
+
+    noNo = (((noNo - yesNo) - yesYes) - noYes)
+    return yesYes, yesNo, noYes, noNo
+
+
+def compileOverlapData(uniA,uniB,sigA,sigB,chrList):
+    """
+    Piles-up the overlap coverage data for the fisher exact test.
+
+    :param uniA: Interval Universe A
+    :param uniB: Interval Universe B
+    :param sigA: Interval Significant A
+    :param sigB: Interval Significant B
+    :param chrList: List of chromosomes to analyze
+    :return:
+    """
+    yesYes = 0
+    yesNo = 0
+    noYes = 0
+    noNo = 0
     for i in chrList:
-        sigOverlap[i] = {
-            'Total Coverage': 0
-        }
-        sigOnlyA[i] = {
-            'Total Coverage': 0
-        }
-        sigOnlyB[i] = {
-            'Total Coverage': 0
-        }
-        universe[i] = {
-            'Total Coverage': 0,
-        }
+        a, b, c, d = overLap2Way(uniA[i], uniB[i], sigA[i], sigB[i])
+        yesYes = yesYes + a
+        yesNo = yesNo + b
+        noYes = noYes + c
+        noNo = noNo + d
 
-    for i in chrList:
-        ### Significant Overlap
-        sigIntA = sigA[i]["Peaks"]
-        sigIntB = sigB[i]["Peaks"]
-        overlap = sigIntA & sigIntB
-        sigCover = 0
-        for j in overlap:
-            sigCover = sigCover + (j[1] - j[0])
-        sigOverlap[i]["Total Coverage"] = sigCover
-        ## Universe
-        uniOverlap = uniA[i]["Peaks"] & uniB[i]["Peaks"]
-        uniCover = 0
-        for k in uniOverlap:
-            uniCover = uniCover + (k[1] - k[0])
-        ### Sig A Only
-        overlapA = uniOverlap & sigIntA
-        coverA = 0
-        for l in overlapA:
-            coverA = coverA + (l[1] - l[0])
-        sigOnlyA[i]["Total Coverage"] = coverA - sigCover
-        ### Sig B Only
-        overlapB = sigIntB & uniOverlap
-        coverB = 0
-        for m in overlapB:
-            coverB = coverB + (m[1] - m[0])
-        sigOnlyB[i]["Total Coverage"] = coverB - sigCover
-        ## Universe
-        uniCover = (((uniCover - sigCover) - sigOnlyA[i]["Total Coverage"]) - sigOnlyB[i]["Total Coverage"])
-        universe[i]["Total Coverage"] = uniCover
-
-    return sigOverlap, sigOnlyA, sigOnlyB, universe
+    return yesYes, yesNo, noYes, noNo
 
 
-def fisherTest(sigOverlap,sigOnlyA,sigOnlyB,universe,chrList):
+def fisherTest(yesYes,yesNo,noYes,noNo):
     """
     Performs a fisher exact test on the overlap results
     returning pValue and Odds Ratio
-    :param sigOverlap: The Significant Overlaps for A and B
-    :param sigOnlyA: The number of sig basepairs for only A
-    :param sigOnlyB: The number of sig basepairs for only B
-    :param universe: The Universe of non significant basepairs with peaks.
+    :param yesYes: The Significant Overlap Basepairs for A and B
+    :param yesNo: The number of sig basepairs for only A
+    :param noYes: The number of sig basepairs for only B
+    :param noNo: The Total Universe of non significant basepairs.
     :return: pValue and Odds Ratio
     """
-    A = 0
-    B = 0
-    C = 0
-    D = 0
-    for i in chrList:
-        A = A + sigOverlap[i]["Total Coverage"]
-        B = B + sigOnlyA[i]["Total Coverage"]
-        C = C + sigOnlyB[i]["Total Coverage"]
-        D = D + universe[i]["Total Coverage"]
-    A = int(A)
-    B = int(B)
-    C = int(C)
-    D = int(D)
-    oddsRatio, pValue = spst.fisher_exact([[A, B], [C, D]])
+    oddsRatio, pValue = spst.fisher_exact([[yesYes, yesNo], [noYes, noNo]])
 
-    return pValue,oddsRatio, A, B, C, D
+    return pValue,oddsRatio
 
 
 def writeOutput(A, B, C, D, fileA, fileB,
@@ -193,13 +183,12 @@ def writeOutput(A, B, C, D, fileA, fileB,
 
 def main(fileA, fileB, pValFilterA, signalFilterA,
          pValFilterB, signalFilterB, outFile, selection):
-
     chrList = pickChromosomes(selection)
     uniA, sigA = gappedPeakReader(chrList, fileA, pValFilterA, signalFilterA)
     uniB, sigB = gappedPeakReader(chrList, fileB, pValFilterB, signalFilterB)
-    sigOverlap, sigOnlyA, sigOnlyB, universe = overLap2Way(uniA, uniB, sigA, sigB, chrList)
-    pValue, oddsRatio, A, B, C, D = fisherTest(sigOverlap, sigOnlyA, sigOnlyB, universe, chrList)
-    writeOutput(A, B, C, D, fileA, fileB, outFile, pValue, oddsRatio,chrList)
+    yesYes, yesNo, noYes, noNo = compileOverlapData(uniA, uniB, sigA, sigB, chrList)
+    pValue, oddsRatio = fisherTest(yesYes, yesNo, noYes, noNo, chrList)
+    writeOutput(yesYes, yesNo, noYes, noNo, fileA, fileB, outFile, pValue, oddsRatio,chrList)
     return
 
 
