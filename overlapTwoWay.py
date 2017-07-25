@@ -187,7 +187,7 @@ def main(fileA, fileB, pValFilterA, signalFilterA,
     uniA, sigA = gappedPeakReader(chrList, fileA, pValFilterA, signalFilterA)
     uniB, sigB = gappedPeakReader(chrList, fileB, pValFilterB, signalFilterB)
     yesYes, yesNo, noYes, noNo = compileOverlapData(uniA, uniB, sigA, sigB, chrList)
-    pValue, oddsRatio = fisherTest(yesYes, yesNo, noYes, noNo, chrList)
+    pValue, oddsRatio = fisherTest(yesYes, yesNo, noYes, noNo)
     writeOutput(yesYes, yesNo, noYes, noNo, fileA, fileB, outFile, pValue, oddsRatio,chrList)
     return
 
