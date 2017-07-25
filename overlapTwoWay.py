@@ -131,7 +131,7 @@ def compileOverlapData(uniA,uniB,sigA,sigB,chrList):
     noYes = 0
     noNo = 0
     for i in chrList:
-        a, b, c, d = overLap2Way(uniA[i], uniB[i], sigA[i], sigB[i])
+        a, b, c, d = overLap2Way(uniA[i]["Peaks"], uniB[i]["Peaks"], sigA[i]["Peaks"], sigB[i]["Peaks"])
         yesYes = yesYes + a
         yesNo = yesNo + b
         noYes = noYes + c
